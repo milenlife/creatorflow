@@ -24,6 +24,36 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
     if (error) redirect("/login?error=" + encodeURIComponent(error.message));
     redirect("/login?error=Periksa%20email%20untuk%20konfirmasi%20akun%20jika%20diaktifkan");
   }
+  async function resetPassword(formData: FormData) {
+    "use server";
+
+    const email = String(formData.get("email") || "").trim();
+
+    if (!email) {
+      redirect("/login?error=Masukkan%20email%20akunmu");
+    }
+
+    const supabase = await createClient();
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo:
+        "https://creatorflow-seven-zeta.vercel.app/reset-password",
+    });
+
+    if (error) {
+      redirect(
+        "/login?error=" +
+          encodeURIComponent("Gagal mengirim email pemulihan. Coba lagi.")
+      );
+    }
+
+    redirect(
+      "/login?error=" +
+        encodeURIComponent(
+          "Jika email terdaftar, tautan pemulihan akan dikirim. Periksa inbox dan folder spam."
+        )
+    );
+  }
   return <main style={{minHeight:"100vh",display:"grid",placeItems:"center",padding:20}}>
     <section className="panel" style={{width:"100%",maxWidth:430,padding:28}}>
       <div className="brand" style={{padding:"0 0 20px"}}>Creator<span>Flow</span></div>
@@ -36,6 +66,31 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         <input className="field" name="password" type="password" placeholder="Password" minLength={8} required />
         <button className="btn primary" type="submit" style={{justifyContent:"center"}}>Masuk</button>
       </form>
+      
+      <details style={{ marginTop: 18 }}>
+        <summary style={{ cursor: "pointer", fontSize: 13, fontWeight: 700 }}>
+          Lupa kata sandi?
+        </summary>
+        <form
+          action={resetPassword}
+          style={{ display: "grid", gap: 12, marginTop: 12 }}
+        >
+          <input
+            className="field"
+            name="email"
+            type="email"
+            placeholder="Email akun CreatorFlow"
+            required
+          />
+          <button
+            className="btn"
+            type="submit"
+            style={{ justifyContent: "center" }}
+          >
+            Kirim tautan pemulihan
+          </button>
+        </form>
+      </details>
       <details style={{marginTop:18}}>
         <summary style={{cursor:"pointer",fontSize:13,fontWeight:700}}>Buat akun baru</summary>
         <form action={signUp} style={{display:"grid",gap:12,marginTop:12}}>
