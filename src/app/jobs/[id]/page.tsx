@@ -1,0 +1,25 @@
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { STAGES } from "@/lib/stages";
+import { updateStage, updatePayment, updateJobLinks } from "@/app/actions";
+import { formatIDR, paymentLabel, stageName } from "@/app/ui";
+
+export default async function JobDetail({params}:{params:Promise<{id:string}>}) {
+  const {id}=await params, supabase=await createClient();
+  const {data:{user}}=await supabase.auth.getUser(); if(!user) redirect("/login");
+  const {data:profile}=await supabase.from("profiles").select("workspace_id").eq("id",user.id).single();
+  if(!profile?.workspace_id) return <main className="main"><div className="panel">Workspace belum disiapkan.</div></main>;
+  const {data:job}=await supabase.from("endorsements").select("*").eq("id",id).eq("workspace_id",profile.workspace_id).single();
+  if(!job) notFound();
+  const {data:history}=await supabase.from("status_history").select("from_stage,to_stage,created_at").eq("endorsement_id",id).eq("workspace_id",profile.workspace_id).order("created_at",{ascending:false}).limit(12);
+  const linkFields=[["wa_group_url","Grup WhatsApp"],["brief_url","Brief"],["script_url","Script"],["draft_url","Draft konten"],["post_url","Link posting"],["insights_url","Insights"]] as const;
+  return <div className="shell"><aside className="sidebar"><div className="brand">Creator<span>Flow</span></div><Link className="nav" href="/">Dashboard</Link><Link className="nav active" href="/jobs">Semua endorsement</Link><Link className="nav" href="/import">Impor Google Sheets</Link><Link className="nav" href="/team">Pengaturan tim</Link></aside><main className="main">
+    <header className="topbar"><div><div className="eyebrow">DETAIL ENDORSEMENT</div><h1>{job.brand_name}</h1><div className="sub">{job.brand_handle||"Handle belum diisi"} · {(job.platform||[]).join(", ")||"Platform belum diisi"}</div></div><Link className="btn" href="/jobs">← Semua job</Link></header>
+    <section className="stats"><div className="stat"><div className="stat-label">Fee</div><div className="stat-value" style={{fontSize:22}}>{formatIDR(Number(job.fee_idr||0))}</div></div><div className="stat"><div className="stat-label">Tanggal posting</div><div className="stat-value" style={{fontSize:19}}>{job.posting_date||"Belum diatur"}</div></div><div className="stat"><div className="stat-label">Tahap</div><div className="stat-value" style={{fontSize:16}}>{stageName(job.stage)}</div></div><div className="stat"><div className="stat-label">Pembayaran</div><div className="stat-value" style={{fontSize:17}}>{paymentLabel(job.payment_status)}</div></div></section>
+    <section className="panel"><div className="panel-head"><div className="panel-title">Perbarui alur kerja</div><span className="muted">Perubahan tahap tercatat di riwayat.</span></div><form action={updateStage} className="toolbar"><input type="hidden" name="id" value={job.id}/><select className="field" name="stage" defaultValue={job.stage} style={{maxWidth:390}}>{STAGES.map(s=><option key={s.key} value={s.key}>{s.label}</option>)}</select><button className="btn primary">Simpan tahap</button></form>
+    <form action={updatePayment} className="toolbar" style={{marginTop:12}}><input type="hidden" name="id" value={job.id}/><select className="field" name="payment_status" defaultValue={job.payment_status} style={{maxWidth:250}}><option value="unpaid">Belum dibayar</option><option value="paid">Lunas</option><option value="barter">Barter</option><option value="partial">Parsial</option><option value="not_applicable">Tidak berlaku</option></select><button className="btn">Perbarui pembayaran</button></form></section>
+    <section className="panel"><div className="panel-title" style={{marginBottom:16}}>Tautan pekerjaan</div><form action={updateJobLinks} className="form-grid"><input type="hidden" name="id" value={job.id}/>{linkFields.map(([key,label])=><div className="form-field" key={key}><label>{label}</label><input className="field" type="url" name={key} defaultValue={(job as any)[key]||""} placeholder="https://..."/></div>)}<div className="form-field full"><button className="btn primary">Simpan tautan</button></div></form>{job.notes&&<><div className="panel-title" style={{marginTop:20}}>Catatan</div><p className="sub">{job.notes}</p></>}</section>
+    <section className="panel"><div className="panel-title" style={{marginBottom:15}}>Riwayat tahap</div>{(history||[]).length===0?<div className="muted">Belum ada riwayat perubahan.</div>:<div style={{display:"grid",gap:12}}>{history!.map((h:any,i:number)=><div key={i} style={{borderLeft:"2px solid #b7d9c4",paddingLeft:13}}><b style={{fontSize:13}}>{h.from_stage?stageName(h.from_stage)+" → ":""}{stageName(h.to_stage)}</b><div className="muted">{new Date(h.created_at).toLocaleString("id-ID")}</div></div>)}</div>}</section>
+  </main></div>;
+}

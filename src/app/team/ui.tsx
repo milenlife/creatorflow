@@ -1,0 +1,7 @@
+ "use client";
+import { useState } from "react";
+export default function TeamClient({role}:{role:string}) {
+ const [email,setEmail]=useState(""); const [memberRole,setMemberRole]=useState("team"); const [status,setStatus]=useState(""); const [busy,setBusy]=useState(false);
+ async function add() {setBusy(true);setStatus("");try{const r=await fetch("/api/team",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({email,role:memberRole})});const d=await r.json();if(!r.ok)throw new Error(d.error);setStatus("Anggota berhasil ditambahkan.");setEmail("");window.location.reload();}catch(e:any){setStatus(e.message)}finally{setBusy(false)}}
+ return <div style={{marginTop:16}}><div className="form-grid"><div className="form-field"><label>Email akun yang sudah mendaftar</label><input className="field" value={email} onChange={e=>setEmail(e.target.value)} placeholder="anggota@email.com"/></div><div className="form-field"><label>Peran</label><select className="field" value={memberRole} onChange={e=>setMemberRole(e.target.value)}><option value="wife">Istri / kreator</option><option value="owner">Pemilik workspace</option><option value="admin">Admin</option><option value="team">Tim</option></select></div></div><button className="btn primary" style={{marginTop:10}} onClick={add} disabled={busy||role!=="admin"||!email.includes("@")}>{busy?"Memproses...":"Tambah anggota"}</button>{role!=="admin"&&<p className="muted">Fitur tambah anggota hanya tersedia untuk admin.</p>}{status&&<p className="notice" style={{marginTop:10}}>{status}</p>}</div>;
+}
