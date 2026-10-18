@@ -13,7 +13,41 @@ export default async function Dashboard({ searchParams }: {searchParams:Promise<
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
   const { data: profile } = await supabase.from("profiles").select("workspace_id,role,display_name").eq("id",user.id).single();
-  if (!profile?.workspace_id) return <main className="main"><section className="panel"><h1>Workspace belum disiapkan</h1><p className="sub">Akun sudah masuk, tetapi belum menjadi anggota workspace. Admin perlu menambahkan akun ke tabel <code>profiles</code> dengan workspace yang sesuai.</p><p className="muted">User ID: {user.id}</p></section></main>;
+  if (!profile?.workspace_id) {
+    async function initWorkspace() {
+      "use server";
+      const s = await createClient();
+      const u = (await s.auth.getUser()).data.user;
+      if (!u) redirect("/login");
+      const { data: ws } = await s.from("workspaces").insert({ name: "CreatorFlow Workspace" }).select("id").single();
+      if (ws) {
+        await s.from("profiles").upsert({
+          id: u.id,
+          email: u.email,
+          display_name: u.email?.split("@")[0] || "Creator",
+          workspace_id: ws.id,
+          role: "admin",
+        });
+      }
+      redirect("/");
+    }
+
+    return (
+      <main className="main" style={{ maxWidth: 520, margin: "60px auto" }}>
+        <section className="panel" style={{ padding: 28, textAlign: "center" }}>
+          <h1 style={{ fontSize: 24, marginBottom: 8 }}>Selamat datang di CreatorFlow! 🎉</h1>
+          <p className="sub" style={{ marginBottom: 20 }}>
+            Akun Anda (<b>{user.email}</b>) telah berhasil masuk. Klik tombol di bawah untuk mengaktifkan workspace endorsement Anda.
+          </p>
+          <form action={initWorkspace}>
+            <button className="btn primary" type="submit" style={{ width: "100%", justifyContent: "center" }}>
+              Aktifkan Workspace Saya
+            </button>
+          </form>
+        </section>
+      </main>
+    );
+  }
   const { data: jobs } = await supabase.from("endorsements").select("*").eq("workspace_id",profile.workspace_id).order("updated_at",{ascending:false});
   const all = jobs ?? [];
   const unpaid = all.filter(j => ["unpaid","partial"].includes(j.payment_status));
