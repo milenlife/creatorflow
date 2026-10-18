@@ -130,3 +130,31 @@ with check (workspace_id = public.current_workspace_id());
 -- 2. Register the first user through /login.
 -- 3. Insert that user's auth UUID into profiles as role='admin' with workspace_id.
 -- 4. Other users register and are added from Pengaturan tim.
+
+-- Auto-provision workspace & profile for new users to avoid "Workspace belum disiapkan" lock
+create or replace function public.handle_new_user_workspace()
+returns trigger language plpgsql security definer as $$
+declare
+  new_ws_id uuid;
+  user_count int;
+begin
+  select count(*) into user_count from public.profiles;
+  if user_count = 0 then
+    -- User pertama mendaftar otomatis menjadi Admin di workspace baru
+    insert into public.workspaces (name) values ('CreatorFlow Workspace') returning id into new_ws_id;
+    insert into public.profiles (id, workspace_id, email, display_name, role)
+    values (new.id, new_ws_id, new.email, split_part(new.email, '@', 1), 'admin');
+  else
+    -- User berikutnya dimasukkan ke workspace pertama sebagai peran 'team'
+    select id into new_ws_id from public.workspaces order by created_at asc limit 1;
+    insert into public.profiles (id, workspace_id, email, display_name, role)
+    values (new.id, new_ws_id, new.email, split_part(new.email, '@', 1), 'team');
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created_workspace on auth.users;
+create trigger on_auth_user_created_workspace
+  after insert on auth.users
+  for each row execute function public.handle_new_user_workspace();
